@@ -61,6 +61,9 @@ PR = (
     # the short mutation controls — the ones that plant a defect and read a red, without
     # starting a container or building a venv
     "test_mutations", "test_no_bypass", "test_consumer_paths",
+    # the one door through that boundary: a fresh install, with no state yet, routed to
+    # the Planner and the migrate gate — and every other stateless tree still refused
+    "test_fresh_install",
     # the tier check itself: a guard that only the release tier ran would
     # let a PR add an unassigned module and find out days later
     "test_check_tiers",

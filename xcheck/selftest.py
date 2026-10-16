@@ -977,6 +977,10 @@ def selftest():
     # emptied or name the wrong owner (e.g. disputed) with all other checks green.
     _rg_cases = [
         ("stop-triage", ["F-0001"], ["triage needed", "xcheck-triage"]),
+        # A new audit's one hand-over before there is state: it must name the passes the
+        # operator is asked to review AND the command that loads them, or it is a stop
+        # with no move.
+        ("stop-migrate", ["P-01", "P-02"], ["plan ready", "P-01, P-02", "xcheck migrate"]),
         ("stop-needs-human", "F-0001", ["needs-human on F-0001", "human decides"]),
         ("stop-refusal", ("F-0001", "material-missing"), ["refusal on F-0001", "material-missing", "STAYS IN FORCE"]),
         ("stop-construal", ("Remediator", "finding F-0001", "audit/construals/k.md", "it is `proposed`"),
