@@ -104,7 +104,8 @@ During triage the agent is the pen, not the decider: it presents findings, recor
 | `styles/` | `eli5.md`, the single source for how a launcher session words things to a person, and `styles/README.md` explaining it. `ci/render-style.py` copies its marked block into all six `skills/*/SKILL.md`; `--check` compares the six copies byte for byte and exits non-zero on a one-character difference. |
 | `launchers/` | Per-CLI installer (`install-launchers.sh`). OpenCode commands are generated from `skills/` at install time. |
 | `bootstrap.md` | From zero to a running cycle: install block, session one-liners, the full cycle step by step. |
-| `install.sh` | One-command install of the methodology into a target project. |
+| `install.sh` | One-command install of the methodology into a target project; `--type code\|text` picks the `AUDIT.md` template. |
+| `operator-profile.sh` | Writes the operator profile, once per machine and outside every audited repository (§5.3). Nothing dispatches without one. |
 | `.claude-plugin/`, `.codex-plugin/` | Claude Code and Codex plugin manifests over the checked-in `skills/` payload. |
 
 ## 5. Installation
@@ -119,7 +120,8 @@ cd xcheck
 ### 5.2 Install the methodology into a target project
 
 ```bash
-./install.sh /path/to/your-project
+./install.sh --type code /path/to/your-project    # a codebase
+./install.sh --type text /path/to/your-project    # a text corpus (the default)
 ```
 
 This creates `your-project/audit/` containing `XCHECK.md`, an `AUDIT.md` template, `templates/`, and empty `findings/`, `passes/`, `plans/`. Nothing is audited yet — the Planner fills `AUDIT.md` in the first session, after which one operator command — `xcheck migrate` — loads that plan into `audit/state.json`, the canonical record. Until then the project has no state document, and that is expected: on a tree `install.sh` created and nothing has been recorded in, `xcheck status` reports `decision: run-planner` and `xcheck next` dispatches the Planner like any other session. Any other tree without `state.json` is still refused.
@@ -128,9 +130,10 @@ There is no `LEDGER.md` to create: from 0.8 it is a **generated mirror** of `sta
 
 Notes:
 
-- The default `AUDIT.md` template is text-oriented; for a codebase, copy `templates/AUDIT-code.md` over `audit/AUDIT.md` before planning.
+- `--type` picks the template `AUDIT.md` starts from: `code` is `templates/AUDIT-code.md`, `text` is `templates/AUDIT-text.md`, and `text` is what an install without the flag gets. It applies only when `audit/AUDIT.md` does not exist yet. An existing one is never replaced; if it is still an unfilled template of the other type, the installer prints the `cp` that switches it.
+- The last lines it prints are the next steps, and the first of them is the operator profile (§5.3).
 - `install.sh` never touches audit state: `AUDIT.md` and `LEDGER.md` are created once and then left alone, and `state.json`, findings, passes and plans are not its business at all.
-- It **does** overwrite `XCHECK.md` and the templates unconditionally — it is an installer, and it assumes those files are still xcheck's. To refresh an *existing* installation, use `xcheck upgrade` (§5.5), which checks that assumption instead of making it.
+- It **does** overwrite `XCHECK.md` and the templates unconditionally — it is an installer, and it assumes those files are still xcheck's. To refresh an *existing* installation, use `xcheck upgrade` (§5.6), which checks that assumption instead of making it.
 - `audit/` can be committed with the project (recommended — remediation commits referencing finding IDs make verification much cheaper) or added to `.gitignore` if the audit must stay out of history.
 
 The installer also records what it put there, in two files `xcheck upgrade` later reads as evidence:
@@ -142,7 +145,25 @@ The installer also records what it put there, in two files `xcheck upgrade` late
 
 If neither `shasum -a 256` nor `sha256sum` is on `PATH`, the install still succeeds and says plainly that it wrote no provenance — a manifest nobody can verify is worse than none, because `upgrade` would trust it.
 
-### 5.3 Install the launchers (optional but recommended)
+### 5.3 Create your operator profile (required, once per machine)
+
+Nothing dispatches without one. The profile governs `orchestrated` sessions, the ones `xcheck next`, `xcheck loop` and the launchers that wrap them (§7) start; each of those refuses before a session starts until a profile resolves, and prints where it looked. `xcheck status` names the profile in force on its `policy:` line, or says there is none. The profile is the operator's own file: which command each role runs, the containment it runs inside, and how far you trust the material. It lives **outside** every audited repository, because a session can write anywhere under `audit/` (§8), so `install.sh` cannot create it for you.
+
+`operator-profile.sh` writes one from the template:
+
+```bash
+./operator-profile.sh --trust trusted /path/to/operator.conf
+export XCHECK_OPERATOR_PROFILE=/path/to/operator.conf    # and in your shell's startup file
+```
+
+- `--trust` is required, and it has no default. Use `trusted` for code you or your organisation wrote and review. Use `untrusted` for anything else; that also sets `sandbox_profile=container`, so docker must work on the machine. `SECURITY.md` says what each boundary does and does not stop.
+- You name the path, because xcheck never derives one from your home directory. With `$XDG_CONFIG_HOME` set, you can leave the path out: the profile goes to `$XDG_CONFIG_HOME/xcheck/operator.conf`, where xcheck finds it with no export.
+- The role commands come from the template: Codex for the Planner, Auditor and Verifier, and `claude -p` for the Remediator. Edit the file to change them; every key is explained beside it.
+- It never overwrites a profile. It validates the file with xcheck's own loader before putting it in place, and with `--project DIR` it refuses a path inside that project. It ends by printing the exact line that points xcheck at the file, in your shell's syntax.
+
+To do it by hand instead, copy `docs/operator.conf.example`, set `trust_level`, and point at the copy the same way. §8 lists every key.
+
+### 5.4 Install the launchers (optional but recommended)
 
 From the xcheck repo:
 
@@ -159,13 +180,13 @@ Idempotent; re-run after updating the repo. Uninstall = delete the copied files.
 
 The checked-in `skills/` directory is also the payload for `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`. `./install-launchers.sh plugin` checks that both manifests and all six skills are present; a marketplace can package the repository directly without a generated payload. Re-running the Codex installer removes the six legacy xcheck files from `~/.codex/prompts/`.
 
-### 5.4 Verify the toolchain
+### 5.5 Verify the toolchain
 
 ```bash
 python3 bin/xcheck selftest    # expect: PASS (N/N) — all checks green, zero failures
 ```
 
-### 5.5 Upgrading an installed copy
+### 5.6 Upgrading an installed copy
 
 ```bash
 bin/xcheck --project /path/to/your-project --dry-run upgrade   # report only
@@ -189,7 +210,7 @@ A refused file keeps its old manifest entry, so it stays refused on the next run
 
 If the installed copy is on a **different state schema**, `upgrade` stops without writing anything and names `xcheck migrate`. The schema is what forces a migration, never the release number — that is why the two versions are printed separately.
 
-### 5.6 Compatibility
+### 5.7 Compatibility
 
 | | Supported |
 |---|---|
@@ -210,6 +231,8 @@ Two ways to run the cycle: **manual** (you paste one-liners or invoke launcher s
 A dry run first is worth 15 minutes: install `audit/` into a throwaway directory and walk one invented finding through every status by hand, including creating and rejecting a class finding. You will learn the mechanics and vocabulary before agents enter the loop.
 
 ### Step 1 — Plan
+
+Do §5.3 first. Without an operator profile, `/xcheck-plan` and `xcheck next` refuse before any session starts.
 
 Open a session of your planning agent **in the audited project root** and run:
 
@@ -327,7 +350,7 @@ Run them in a session opened **in the audited project root**. A per-invocation c
 
 The wrappers are now genuinely thin, and thin in a way the previous version only claimed: preflight → confirm the decision → `xcheck next` → report. They carry no role instructions at all, because they do not play a role. Everything a session is bound by — the lock protocol, the construal gate, the §5 refusal route, session hygiene, the Verifier's independence stance — lives where the dispatched child reads it: `runner.PROMPTS` and `audit/XCHECK.md`. The selftest checks that each of those contracts is present at its new home, so emptying the launchers could not quietly empty the contract. Cross-agent protections are stronger than before, not preserved-as-is: `xcheck next` refuses to dispatch a Verifier over fixes whose `fixed-by` is missing, malformed, or its own session, and the writing lock is held by the orchestrator around the whole transaction rather than by an agent following instructions.
 
-Re-run the launcher installer after any change to the skills (§5.3, `install-launchers.sh` is idempotent), so the installed copies and the generated OpenCode commands never fall behind.
+Re-run the launcher installer after any change to the skills (§5.4, `install-launchers.sh` is idempotent), so the installed copies and the generated OpenCode commands never fall behind.
 
 **Codex note:** launchers install as skills in `~/.agents/skills/`. Codex can invoke them explicitly with `$xcheck-*` or implicitly from a matching request. For non-interactive use, the orchestrator drives Codex through `codex exec` with the same role charters — see the next section.
 
@@ -350,7 +373,7 @@ xcheck [--project DIR] lint               ledger ↔ finding-file consistency ch
 xcheck [--project DIR] metrics [--json]   auditor accuracy, fix durability, distributions
 xcheck [--project DIR] dashboard [--json] render audit/dashboard.html from the two payloads above
 xcheck [--project DIR] [--dry-run] migrate   one-shot: legacy Markdown tree → state.json
-xcheck [--project DIR] [--dry-run] upgrade   refresh the installed core + templates (§5.5)
+xcheck [--project DIR] [--dry-run] upgrade   refresh the installed core + templates (§5.6)
 xcheck selftest                           decision-logic + invariant self-checks
 ```
 
@@ -383,7 +406,8 @@ path that names nothing is an error — a path typed on the command line was mea
 nothing resolves, `next` and `loop` **refuse**, printing the order they tried and the
 file to create. There is deliberately no fallback to defaults: every policy key except
 the role commands has a safe default, so falling back would run agent sessions under
-containment nobody chose. Start from [`docs/operator.conf.example`](docs/operator.conf.example).
+containment nobody chose. `operator-profile.sh` writes one from the template (§5.3); by
+hand, start from [`docs/operator.conf.example`](docs/operator.conf.example).
 The profile is read fail-closed — an unknown key, a project key, or a line that is not
 `KEY=VALUE` is refused by name, because a typo'd `sandbox_profil=container` is a
 containment setting that silently did nothing. Its sha256 is recorded as `policy_digest`
@@ -661,6 +685,7 @@ The methodology and templates are English. **Findings, plans, and reports are wr
 | Quotes "not found" en masse | The material shifted a lot (e.g. after a class fix) | Normal: validation marks such findings `obsolete` or refreshes locators. Do nothing |
 | Session exceeded its charter / no coverage report | Protocol violation | The pass does not count — rerun with a smaller charter; if it recurs, reduce the default pass size in AUDIT.md |
 | Ledger or a frontmatter block diverged from `state.json` | Somebody hand-edited a rendered view (§2) | Nothing repairs it on contact and nothing reads it back — the tool refuses the tree until it is resolved. `xcheck render-views` is the only repair: it overwrites each view from state and lists by name every one that had drifted, so read that list — those are the edits it destroyed — before re-recording the intent through a verb |
+| `no operator profile found` from `xcheck next` or a launcher; `policy: none found` in `xcheck status` | This machine has no operator profile, so nothing may dispatch (§5.3) | `./operator-profile.sh --trust trusted\|untrusted /path/to/operator.conf` from the xcheck repository, then the `export` line it prints |
 | Stale `audit/.lock` | A session died without releasing | `xcheck unlock` diagnoses it; `xcheck unlock --force` removes it (after confirming no writing session is active) |
 
 **Can one agent do everything?** Mechanically yes (roles are functions), but you lose the main safeguard: cross-verification by fresh eyes. Minimum worth insisting on: the Verifier is a separate fresh session that never saw the fix.

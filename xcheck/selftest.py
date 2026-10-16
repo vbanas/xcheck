@@ -3454,8 +3454,8 @@ def selftest():
             _sh50.copytree(_rp50_root / "templates", mrepo / "templates")
             ish = mrepo / "install.sh"
             ish.write_text(ish.read_text(encoding="utf-8").replace(
-                '[ -f "$TARGET/audit/AUDIT.md" ] || cp templates/AUDIT-text.md',
-                'cp templates/AUDIT-text.md'), encoding="utf-8")
+                'if [ ! -f "$TARGET/audit/AUDIT.md" ]; then',
+                'if true; then'), encoding="utf-8")
             mut127 = _install_preserves(mrepo)
         ok = (clean127 == [] and any("AUDIT.md" in p and "preserved" in p for p in mut127))
         print(f"{'PASS' if ok else 'FAIL'}: re-running install.sh preserves audit state byte-for-byte and refreshes XCHECK.md+templates; an inverted AUDIT.md guard is caught (F-0127)"

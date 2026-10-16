@@ -38,6 +38,9 @@ PR = (
     "test_admin_verbs",
     # policy: what the operator owns, where it may live, and the trust classification
     "test_conf_policy", "test_policy_location", "test_trust_level",
+    # and the way in to it: the operator profile nothing dispatches without, the AUDIT.md
+    # template an install picks, and a refusal whose commands run when typed
+    "test_operator_onboarding",
     # the four shared-boundary gates: canonical state, transaction identity, the journal
     # door and the dispatch preparation. AST-only and ~0.4s, and on the PR tier rather
     # than the release tier on purpose — a gate that runs late is a gate that catches late

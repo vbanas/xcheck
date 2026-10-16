@@ -258,6 +258,14 @@ def print_sandbox(conf, state):
     Two different questions, so two lines. "What would run now" comes from the conf;
     "what was actually enforced" comes from the envelope's capability report, which is
     the only one of the two that is evidence."""
+    # The operator profile every line below is read from, in the same words
+    # `require_policy` prints at dispatch. Without it this command answered
+    # `decision: run-planner` on a machine where `next` refuses before any session, and
+    # the launchers send an operator HERE to see which profile is in force.
+    resolved = policy.resolve()
+    print(f"policy: {resolved}  sha256:{policy.profile_digest(resolved)[:16]}" if resolved
+          else "policy: none found — `xcheck next` and `xcheck loop` refuse until one "
+               "resolves; `operator-profile.sh` in the xcheck repository writes one")
     writing = resolve_profile(conf, "Remediator")
     reading = resolve_profile(conf, "Auditor")
     line = (f"sandbox: {writing.name} for writing roles, {reading.name} for reading "
