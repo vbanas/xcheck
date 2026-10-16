@@ -28,11 +28,11 @@ import re
 import shutil
 from pathlib import Path
 
-from xcheck.md_prose import (FRONTMATTER_RE, LIMIT_KEYS, _DIMENSIONS_RE,
-                             _parse_frontmatter, _section_table)
+from xcheck.md_prose import (FRONTMATTER_RE, LIMIT_KEYS, _DIMENSIONS_RE, _NORMS_RE,
+                             _UNITMAP_RE, _parse_frontmatter, _section_table)
 from xcheck.ledger import EVENTS_FILENAME, read_stream
-from xcheck.migrate_readers import (_NORMS_RE, _QUEUE_ENTRY_RE, _QUEUE_RE, _UNITMAP_RE,
-                                    _header_col, _section_bodies, load_construal_files,
+from xcheck.migrate_readers import (_QUEUE_ENTRY_RE, _QUEUE_RE, _header_col,
+                                    _section_bodies, load_construal_files,
                                     load_finding_files, parse_ledger, parse_limits)
 from xcheck.state import (SCHEMA_VERSION, STATE_FILENAME, StateError, _build, _validate,
                           git_head, next_owner, write_state)

@@ -1,7 +1,7 @@
 """From a checkout to a first dispatch: the template an install picks, and the operator
 profile nothing runs without.
 
-A new operator met two gaps, one after the other, on a real codebase:
+A new operator met three gaps, one after the other, on a real codebase:
 
 - `install.sh` always installed the text-corpus AUDIT.md. A codebase needed a hand `cp`
   that only a note under README §5.2 mentioned, so the plan began from `facts`,
@@ -10,9 +10,13 @@ A new operator met two gaps, one after the other, on a real codebase:
   refused, `xcheck status` said nothing about it, and the refusal's own hint —
   "`xcheck --policy PATH` with a path that does not exist prints the template" — named
   a command the CLI rejects: `--policy is not valid for no command`.
+- The plan the Planner then wrote did not load. Of the three catalog tables
+  `xcheck migrate` reads by column name, the templates showed the header of one, and
+  the Planner named the Unit map's key column `id`, not `unit`.
 
 So: `install.sh --type code|text`, `operator-profile.sh`, a refusal whose commands run,
-and a `status` line naming the profile in force, or saying there is none.
+a `status` line naming the profile in force, or saying there is none, and templates
+that show every header the converter reads.
 
 Every script here is the real one, run as a child process. A developer's own profile
 must never decide a test, so each child gets an environment with neither
@@ -133,6 +137,55 @@ class InstallPicksTheTemplate(Scratch):
     def test_the_install_names_the_profile_step(self):
         out = self.install("--type", "code", self.tmp("project"))
         self.assertIn("operator-profile.sh --trust", out)
+
+
+class APlanFilledInAsTheTemplateShowsLoads(Scratch):
+    """Each catalog table is filled the way a Planner fills it: the template's example
+    rows give way to one row under the header the template shows, a cell for each
+    column that header names. This test never writes a header of its own, so a
+    template that stops showing a column the converter needs fails here, the way a
+    real plan failed: `the Unit map table has no 'unit' column`."""
+
+    CELL = {"id": "N1", "source": "`README.md`", "scope": "what it promises",
+            "key": "drift", "what it catches": "a claim the material contradicts",
+            "norm source": "N1", "unit": "U01", "material": "`src/`",
+            "approx. size": "1 kloc", "responsibility": "all of it"}
+
+    def filled(self, text):
+        lines, out, i = text.split("\n"), [], 0
+        while i < len(lines):
+            line, nxt = lines[i], (lines[i + 1] if i + 1 < len(lines) else "")
+            if line.startswith("|") and nxt.startswith("|") and set(nxt) <= set("|-: "):
+                cols = [c.strip() for c in line.strip("| ").split("|")]
+                out += [line, nxt,
+                        "| " + " | ".join(self.CELL.get(c, "-") for c in cols) + " |"]
+                i += 2
+                while i < len(lines) and lines[i].startswith("|"):
+                    i += 1
+                continue
+            out.append(line)
+            i += 1
+        return re.sub(r"^- \[ \] P-01 — <.*$",
+                      "- [ ] P-01 — drift × U01: check every claim; stop: U01 read",
+                      "\n".join(out), count=1, flags=re.M)
+
+    def test_each_template_filled_in_as_shown_converts(self):
+        for t in ("code", "text"):
+            with self.subTest(template=t):
+                project = self.tmp("project")
+                self.install("--type", t, project)
+                plan = project / "audit" / "AUDIT.md"
+                plan.write_text(self.filled(plan.read_text(encoding="utf-8")),
+                                encoding="utf-8")
+                p = subprocess.run([sys.executable, str(XCHECK), "--project", str(project),
+                                    "--dry-run", "migrate"],
+                                   capture_output=True, text=True, timeout=120,
+                                   env=clean_env())
+                out = p.stdout + p.stderr
+                self.assertEqual(p.returncode, 0, out)
+                for kind in ("norms", "dimensions", "units", "queue"):
+                    self.assertRegex(out, re.compile(rf"^\s+{kind}\s+1$", re.M), kind)
+                self.assertNotIn("no size column", out)
 
 
 class OperatorProfileHelper(Scratch):
